@@ -3,25 +3,110 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Shakrit — playable</title>
+<title>Shakrit — Playable</title>
 <style>
-html,body{height:100%;margin:0;background:#071018;color:#fff;font-family:Arial,Helvetica,sans-serif}
-#title{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:60;background:linear-gradient(#000,#071016)}
-#title h1{margin:0;font-size:56px;color:#00ff99;text-shadow:0 6px 18px rgba(0,0,0,0.8)}
-.btn{padding:12px 22px;margin:8px;border-radius:8px;border:0;background:#0b6;cursor:pointer;font-weight:700}
-#canvasWrap{display:flex;justify-content:center;align-items:center;height:100vh;padding:12px;box-sizing:border-box}
-canvas{background:linear-gradient(#071018,#021015);border:3px solid rgba(255,255,255,0.04);max-width:100%;height:auto;display:block}
-#controls{position:fixed;left:0;right:0;bottom:12px;display:flex;justify-content:space-between;padding:0 20px;z-index:70;pointer-events:none}
-.leftControls,.rightControls{display:flex;gap:10px;pointer-events:auto}
-.ctrl{width:64px;height:64px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:22px;user-select:none;touch-action:none}
-.ctrl.big{width:92px;height:72px}
-#hud{position:fixed;left:12px;top:12px;display:flex;gap:12px;z-index:75}
-.panel{background:rgba(0,0,0,0.45);padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);font-weight:700}
-@media(max-width:600px){ .ctrl{width:52px;height:52px;font-size:18px} .ctrl.big{width:84px;height:64px} #title h1{font-size:36px} }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: #071018;
+    color: #fff;
+    font-family: Arial, Helvetica, sans-serif;
+  }
+  #title {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 60;
+    background: linear-gradient(#000,#071016);
+  }
+  #title h1 {
+    margin: 0;
+    font-size: 56px;
+    color: #00ff99;
+    text-shadow: 0 6px 18px rgba(0,0,0,0.8);
+  }
+  .btn {
+    padding: 12px 22px;
+    margin: 8px;
+    border-radius: 8px;
+    border: 0;
+    background: #0b6;
+    cursor: pointer;
+    font-weight: 700;
+  }
+  #canvasWrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    padding: 12px;
+    box-sizing: border-box;
+  }
+  canvas {
+    background: linear-gradient(#071018,#021015);
+    border: 3px solid rgba(255,255,255,0.04);
+    max-width: 100%;
+    height: auto;
+    display: block;
+  }
+  #controls {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    z-index: 70;
+    pointer-events: none;
+  }
+  .leftControls, .rightControls {
+    display: flex;
+    gap: 10px;
+    pointer-events: auto;
+  }
+  .ctrl {
+    width: 64px;
+    height: 64px;
+    border-radius: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    user-select: none;
+    touch-action: none;
+  }
+  .ctrl.big { width: 92px; height: 72px; }
+  #hud {
+    position: fixed;
+    left: 12px;
+    top: 12px;
+    display: flex;
+    gap: 12px;
+    z-index: 75;
+  }
+  .panel {
+    background: rgba(0,0,0,0.45);
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.03);
+    font-weight: 700;
+  }
+  @media(max-width:600px) {
+    .ctrl { width: 52px; height: 52px; font-size: 18px; }
+    .ctrl.big { width: 84px; height: 64px; }
+    #title h1 { font-size: 36px; }
+  }
 </style>
 </head>
 <body>
 
+<!-- Title Screen -->
 <div id="title">
   <h1>Shakrit</h1>
   <div style="margin:8px;color:#9fb">Side-scroller Prototype — touch or keyboard</div>
@@ -29,19 +114,24 @@ canvas{background:linear-gradient(#071018,#021015);border:3px solid rgba(255,255
     <button id="startBtn" class="btn">Start Game</button>
     <button id="settingsBtn" class="btn" style="background:#448">Settings</button>
   </div>
-  <div style="margin-top:6px;color:#9fb;font-size:13px">Controls: ← → move, Space jump, Z shoot; touch buttons below</div>
+  <div style="margin-top:6px;color:#9fb;font-size:13px">
+    Controls: ← → move, Space jump, Z shoot; touch buttons below
+  </div>
 </div>
 
+<!-- HUD -->
 <div id="hud" aria-hidden>
   <div class="panel" id="score">Score: 0</div>
   <div class="panel" id="lives">Lives: 3</div>
   <div class="panel" id="level">Level: 1</div>
 </div>
 
+<!-- Canvas -->
 <div id="canvasWrap">
   <canvas id="game" width="1000" height="560"></canvas>
 </div>
 
+<!-- Touch Controls -->
 <div id="controls">
   <div class="leftControls">
     <div id="btnLeft" class="ctrl">◀</div>
@@ -53,254 +143,7 @@ canvas{background:linear-gradient(#071018,#021015);border:3px solid rgba(255,255
   </div>
 </div>
 
-<script>
-// canvas
-const canvas = document.getElementById('game');
-const ctx = canvas.getContext('2d');
-const W = canvas.width, H = canvas.height;
-
-// HUD
-const startBtn = document.getElementById('startBtn');
-const title = document.getElementById('title');
-const scoreDOM = document.getElementById('score');
-const livesDOM = document.getElementById('lives');
-const levelDOM = document.getElementById('level');
-
-// controls
-const controls = { left:document.getElementById('btnLeft'), right:document.getElementById('btnRight'), jump:document.getElementById('btnJump'), fire:document.getElementById('btnFire') };
-
-// game vars
-let running = false, paused = false;
-let cameraX = 0;
-let score = 0, lives = 3;
-
-// player
-const player = { x:80, y:H*0.7, w:40, h:60, vx:0, vy:0, speed:4, facing:'right', shootCooldown:0, onGround:true };
-
-// bullets
-let bullets = [], enemyBullets = [], enemies = [], particles = [];
-
-// input
-const input = { left:false, right:false, jump:false, shoot:false };
-
-// levels
-let levelIndex = 0;
-const levels = [
-  { width:4000, playerStartX:80, enemies:[ {id:1,x:600,patrol:160,type:'grunt',hp:2,shootRange:240,trigger:520},{id:2,x:1200,patrol:120,type:'grunt',hp:2,shootRange:220,trigger:1140},{id:3,x:1800,patrol:200,type:'jumper',hp:3,shootRange:220,trigger:1760},{id:4,x:2600,patrol:220,type:'sniper',hp:2,shootRange:380,trigger:2560},{id:5,x:3400,patrol:220,type:'grunt',hp:2,shootRange:240,trigger:3340}], levelEndX:3800 },
-  { width:5200, playerStartX:80, enemies:[ {id:1,x:500,patrol:120,type:'grunt',hp:2,shootRange:220,trigger:440},{id:2,x:1000,patrol:160,type:'grunt',hp:2,shootRange:220,trigger:940},{id:3,x:1700,patrol:200,type:'jumper',hp:3,shootRange:220,trigger:1660},{id:4,x:2400,patrol:260,type:'sniper',hp:2,shootRange:420,trigger:2340},{id:5,x:3800,patrol:300,type:'mini',hp:12,shootRange:320,trigger:3740}], levelEndX:4800 }
-];
-let levelData = levels[levelIndex];
-let levelWidth = levelData.width;
-
-// image assets
-const bgImg = new Image();
-bgImg.src = "assets/background/Background.png"; // your background
-const playerImg = new Image();
-playerImg.src = "assets/player/Player.PNG"; // your player PNG (gray/white cut)
-const enemyImg = new Image();
-enemyImg.src = "assets/enemies/Enemy.PNG"; // your enemy PNG (gray/white cut)
-
-// helpers
-function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
-function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
-function rects(a,b){ return !(a.x+a.w < b.x || a.x > b.x+b.w || a.y+a.h < b.y || a.y > b.y + b.h); }
-
-const activated = new Set();
-const MAX_ACTIVE = 3;
-const TRIGGER_MARGIN = 80;
-
-// spawn enemy
-function spawnFrom(cfg){
-  const e = { id:cfg.id,type:cfg.type,x:cfg.x,y:H*0.7,w:44,h:48,vx:(Math.random()<0.5?-1:1)*(0.6+Math.random()*1.2),minX:cfg.x-cfg.patrol/2,maxX:cfg.x+cfg.patrol/2,hp:cfg.hp,shootRange:cfg.shootRange,shootCooldown:rand(40,120),onGround:true };
-  e.minX = Math.max(40,e.minX);
-  e.maxX = Math.min(levelWidth-80,e.maxX);
-  enemies.push(e);
-}
-
-// update
-function update(){
-  // player move
-  player.vx = 0;
-  if(input.left){ player.vx = -player.speed; player.facing='left'; }
-  if(input.right){ player.vx = player.speed; player.facing='right'; }
-  player.x += player.vx;
-  player.x = clamp(player.x,12,levelWidth-player.w-12);
-
-  // camera
-  const viewCenter = W*0.38;
-  cameraX = clamp(player.x - viewCenter,0,levelWidth-W);
-
-  // jump
-  if(input.jump && player.onGround){ player.vy = -11; player.onGround=false; }
-  player.vy += 0.6;
-  player.y += player.vy;
-  if(player.y + player.h >= H*0.7 + 60){ player.y = H*0.7 + 60 - player.h; player.vy = 0; player.onGround=true; }
-
-  // shoot
-  if(input.shoot && player.shootCooldown<=0){
-    const dir = player.facing==='right'?1:-1;
-    bullets.push({ x:player.x + (dir===1?player.w:-12), y:player.y + player.h*0.45, vx:12*dir, w:10, h:5, life:200 });
-    player.shootCooldown = 12;
-  }
-  if(player.shootCooldown>0) player.shootCooldown--;
-
-  // activate enemies
-  for(const cfg of levelData.enemies){
-    if(activated.has(cfg.id)) continue;
-    if(player.x >= cfg.trigger-TRIGGER_MARGIN && enemies.length<MAX_ACTIVE){
-      spawnFrom(cfg);
-      activated.add(cfg.id);
-    }
-  }
-
-  // update enemies
-  for(let i=enemies.length-1;i>=0;i--){
-    const e=enemies[i];
-    e.x += e.vx;
-    if(e.x<e.minX){ e.x=e.minX; e.vx=Math.abs(e.vx); }
-    if(e.x+e.w>e.maxX){ e.x=e.maxX-e.w; e.vx=-Math.abs(e.vx); }
-
-    if(e.type==='jumper' && Math.random()<0.006 && e.onGround!==false){ e.vy=-9-Math.random()*4; e.onGround=false; }
-    if(e.vy!==undefined){ e.vy+=0.6; e.y+=e.vy; if(e.y+e.h>=H*0.7+60){ e.y=H*0.7+60-e.h; e.vy=0; e.onGround=true; } }
-
-    const dx = (player.x - e.x);
-    if(Math.abs(dx)<=e.shootRange && e.shootCooldown<=0){
-      const dir = dx>=0?1:-1;
-      enemyBullets.push({ x:e.x+e.w/2, y:e.y+e.h/2, vx:5*dir, vy:0, w:8, h:6, life:300 });
-      e.shootCooldown = 60+Math.floor(Math.random()*80);
-    }
-    if(e.shootCooldown>0) e.shootCooldown--;
-
-    if(e.hp<=0){ spawnExplosion(e.x,e.y); enemies.splice(i,1); score+=40; continue; }
-  }
-
-  // bullets
-  for(let i=bullets.length-1;i>=0;i--){
-    const b=bullets[i]; b.x+=b.vx; b.life--;
-    if(b.life<=0){ bullets.splice(i,1); continue; }
-    for(let j=enemies.length-1;j>=0;j--){
-      if(rects(b,enemies[j])){ enemies[j].hp-=1; bullets.splice(i,1); break; }
-    }
-  }
-
-  for(let i=enemyBullets.length-1;i>=0;i--){
-    const b=enemyBullets[i]; b.x+=b.vx; b.life--;
-    if(b.life<=0) enemyBullets.splice(i,1);
-    else if(rects(b,player)){ enemyBullets.splice(i,1); hurtPlayer(); }
-  }
-
-  // particles
-  for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.2; p.life--; if(p.life<=0) particles.splice(i,1); }
-
-  // level end
-  if(player.x>=levelData.levelEndX){
-    if(levelIndex+1<levels.length){ levelIndex++; startLevel(levelIndex); }
-    else{ running=false; setTimeout(()=>alert('You finished the game! Score: '+score),80); }
-  }
-
-  scoreDOM.textContent='Score: '+score;
-  livesDOM.textContent='Lives: '+lives;
-  levelDOM.textContent='Level: '+(levelIndex+1);
-}
-
-// render
-function render(){
-  ctx.clearRect(0,0,W,H);
-
-  // background
-  if(bgImg.complete && bgImg.naturalWidth!==0){ ctx.drawImage(bgImg,-cameraX,0,levelWidth,H); }
-  else{ ctx.fillStyle='#03191a'; ctx.fillRect(0,0,W,H); }
-
-  // ground
-  ctx.fillStyle='#0f2a2a'; ctx.fillRect(0,H*0.7+60,W,20);
-
-  // enemies
-  for(const e of enemies){ 
-    const ex=e.x-cameraX, ey=e.y;
-    if(enemyImg.complete && enemyImg.naturalWidth!==0) ctx.drawImage(enemyImg,ex,ey,e.w,e.h);
-    else{ ctx.fillStyle='#ff6b6b'; ctx.fillRect(ex,ey,e.w,e.h); }
-  }
-
-  // bullets
-  ctx.fillStyle='#ffd24d'; for(const b of bullets) ctx.fillRect(b.x-cameraX,b.y,b.w,b.h);
-  ctx.fillStyle='#ff7b7b'; for(const b of enemyBullets) ctx.fillRect(b.x-cameraX,b.y,b.w,b.h);
-
-  // player
-  drawPlayer(player.x-cameraX,player.y,player.w,player.h,player.facing);
-
-  // particles
-  for(const p of particles){ ctx.fillStyle=p.col; ctx.fillRect(p.x-cameraX,p.y,3,3); }
-}
-
-// draw player with flip
-function drawPlayer(sx,sy,w,h,facing){
-  if(playerImg.complete && playerImg.naturalWidth!==0){
-    ctx.save();
-    if(facing==='left'){
-      ctx.translate(sx+w/2,0);
-      ctx.scale(-1,1);
-      ctx.drawImage(playerImg,-(sx+w/2)-w/2,sy,w,h);
-    } else ctx.drawImage(playerImg,sx,sy,w,h);
-    ctx.restore();
-  } else{ ctx.fillStyle='#06b07a'; ctx.fillRect(sx,sy,w,h); }
-}
-
-// explosions
-function spawnExplosion(x,y){ for(let i=0;i<12;i++) particles.push({x:x+rand(-8,8),y:y+rand(-8,8),vx:(Math.random()-0.5)*6,vy:(Math.random()-0.5)*6-1,life:20+rand(0,30),col:['#ff9a6b','#ff6b6b','#ffd24d'][rand(0,2)]}); }
-
-// player hit
-function hurtPlayer(){
-  lives=Math.max(0,lives-1);
-  spawnExplosion(player.x,player.y);
-  player.x=Math.max(80,player.x-140);
-  player.vx=player.vy=0;
-  if(lives===0){ running=false; setTimeout(()=>alert('Game Over! Score: '+score),40); resetAndShowTitle(); }
-}
-
-// input
-window.addEventListener('keydown',e=>{
-  if(e.key==='ArrowLeft') input.left=true,player.facing='left';
-  if(e.key==='ArrowRight') input.right=true,player.facing='right';
-  if(e.key===' '||e.key==='ArrowUp') input.jump=true;
-  if(e.key.toLowerCase()==='z') input.shoot=true;
-});
-window.addEventListener('keyup',e=>{
-  if(e.key==='ArrowLeft') input.left=false;
-  if(e.key==='ArrowRight') input.right=false;
-  if(e.key===' '||e.key==='ArrowUp') input.jump=false;
-  if(e.key.toLowerCase()==='z') input.shoot=false;
-});
-
-// touch buttons
-function wire(el,prop){ el.addEventListener('touchstart',ev=>{ev.preventDefault();input[prop]=true;},{passive:false}); el.addEventListener('touchend',ev=>{ev.preventDefault();input[prop]=false;},{passive:false}); el.addEventListener('mousedown',()=>input[prop]=true); el.addEventListener('mouseup',()=>input[prop]=false); el.addEventListener('mouseleave',()=>input[prop]=false); }
-wire(controls.left,'left'); wire(controls.right,'right'); wire(controls.jump,'jump'); wire(controls.fire,'shoot');
-
-// main loop
-let lastTs=0;
-function step(ts){
-  if(!lastTs) lastTs=ts;
-  const dt=ts-lastTs;
-  lastTs=ts;
-  if(running){ update(); render(); }
-  requestAnimationFrame(step);
-}
-
-// start/reset
-function startLevel(idx){
-  levelIndex=idx; levelData=levels[idx]; levelWidth=levelData.width;
-  player.x=levelData.playerStartX; player.y=H*0.7; player.vx=player.vy=0; player.onGround=true; bullets=[]; enemyBullets=[]; enemies=[]; activated.clear();
-}
-
-function resetAndShowTitle(){ title.style.display='flex'; }
-
-startBtn.onclick=()=>{
-  running=true;
-  title.style.display='none';
-  startLevel(levelIndex);
-};
-
-requestAnimationFrame(step);
-</script>
+<!-- JS will come here later -->
 
 </body>
 </html>
