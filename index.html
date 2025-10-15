@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Shakrit — Play</title>
+<style>
+  html,body{height:100%;margin:0;background:#071018;color:#fff;font-family:Arial,Helvetica,sans-serif}
+  #title{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:60;background:linear-gradient(#000,#071016)}
+  #title h1{margin:0;font-size:56px;color:#00ff99;text-shadow:0 6px 18px rgba(0,0,0,0.8)}
+  .btn{padding:12px 22px;margin:8px;border-radius:8px;border:0;background:#0b6;cursor:pointer;font-weight:700}
+  #canvasWrap{display:flex;justify-content:center;align-items:center;height:100vh;padding:12px;box-sizing:border-box}
+  canvas{background:linear-gradient(#071018,#021015);border:3px solid rgba(255,255,255,0.04);max-width:100%;height:auto;display:block}
+  #controls{position:fixed;left:0;right:0;bottom:12px;display:flex;justify-content:space-between;padding:0 20px;z-index:70;pointer-events:none}
+  .leftControls,.rightControls{display:flex;gap:10px;pointer-events:auto}
+  .ctrl{width:64px;height:64px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:22px;user-select:none;touch-action:none}
+  .ctrl.big{width:92px;height:72px}
+  #hud{position:fixed;left:12px;top:12px;display:flex;gap:12px;z-index:75}
+  .panel{background:rgba(0,0,0,0.45);padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);font-weight:700}
+  @media(max-width:600px){ .ctrl{width:52px;height:52px;font-size:18px} .ctrl.big{width:84px;height:64px} #title h1{font-size:36px} }
+</style>
+</head>
+<body>
+
+<!-- Title -->
+<div id="title">
+  <h1>Shakrit</h1>
+  <div style="margin:8px;color:#9fb">A side-scrolling demo — touch or keyboard</div>
+  <div>
+    <button id="startBtn" class="btn">Start Game</button>
+  </div>
+  <div style="margin-top:6px;color:#9fb;font-size:13px">Controls: ← → to move, Space to jump, Z to shoot (touch buttons below)</div>
+</div>
+
+<!-- HUD -->
+<div id="hud" aria-hidden>
+  <div class="panel" id="score">Score: 0</div>
+  <div class="panel" id="lives">Lives: 3</div>
+  <div class="panel" id="position">X: 0</div>
+</div>
+
+<!-- Canvas -->
+<div id="canvasWrap">
+  <canvas id="game" width="1000" height="560"></canvas>
+</div>
+
+<!-- Touch Controls -->
+<div id="controls">
+  <div class="leftControls">
+    <div id="btnLeft" class="ctrl">◀</div>
+    <div id="btnRight" class="ctrl">▶</div>
+    <div id="btnJump" class="ctrl">▲</div>
+  </div>
+  <div class="rightControls">
+    <div id="btnFire" class="ctrl big">FIRE</div>
+  </div>
+</div>
+
+<script>
+/* Single-file playable side-scroller (no external assets) */
+/* Simple, reliable: title -> start -> playable world with triggered enemies */
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const title = document.getElementById('title');
+const startBtn = document.getElementById('startBtn');
+const scoreDOM = document.getElementById('score');
+const livesDOM = document.getElementById('lives');
+const posDOM = document.getElementById('position');
+
+const controls = {
+  left: document.getElementById('btnLeft'),
+  right: document.getElementById('btnRight'),
+  jump: document.getElementById('btnJump'),
+  fire: document.getElementById('btnFire')
+};
+
+let running = false;
+let paused = false;
+
+/* world and camera */
+const levelWidth = 6000;
+let cameraX = 0;
+
+/* player */
+const player = { x:80, y:H-140, w:40, h:60, vx:0, vy:0, onGround:true, facing:'right', shootCooldown:0 };
+
+/* bullets + enemy bullets */
+let bullets = [];
+let enemyBullets = [];
+let enemies = []; // active enemies (spawned)
+let particles = [];
+
+/* score & lives */
+let score = 0;
+let lives = 3;
+
+/* simple level data — enemies with triggerX and patrol ranges */
+const levelData = [
+  { id:1, x:600, y:H-140, patrol:160, trigger:520, type:'grunt', hp:2, shootRange:260 },
+  { id:2, x:1200, y:H-140, patrol:120, trigger:1140, type:'grunt', hp:2, shootRange:200 },
+  { id:3, x:1900, y:H-140, patrol:180, trigger:1840, type:'jumper', hp:3, shootRange:220 },
+  { id:4, x:2600, y:H-140, patrol:200, trigger:2540, type:'sniper', hp:2, shootRange:380 },
+  { id:5, x:3400, y:H-140, patrol:220, trigger:3340, type:'grunt', hp:2, shootRange:240 },
+  { id:6, x:4200, y:H-140, patrol:300, trigger:4140, type:'mini-boss', hp:20, shootRange:350 }
+];
+
+const activated = new Set();
+const MAX_ACTIVE = 3;
+const TRIGGER_MARGIN = 80;
+
+/* Utility */
+function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
+function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function rects(a,b){ return !(a.x+a.w < b.x || a.x > b.x+b.w || a.y+a.h < b.y || a.y > b.y + b.h); }
+
+/* spawn enemy object from cfg */
+function spawnFrom(cfg){
+  const e = {
+    id: cfg.id, type: cfg.type, x: cfg.x, y: cfg.y, baseX: cfg.x,
+    w:44, h:48, vx: (Math.random()<0.5?-1:1)*(0.6 + Math.random()*1.2),
+    minX: cfg.x - cfg.patrol/2, maxX: cfg.x + cfg.patrol/2,
+    hp: cfg.hp, shootRange: cfg.shootRange, shootCooldown: rand(40,120)
+  };
+  e.minX = Math.max(40, e.minX);
+  e.maxX = Math.min(levelWidth - 80, e.maxX);
+  enemies.push(e);
+}
+
+/* update world */
+function update(){
+  // input movement handled by keyboard/touch
+  // move player
+  const speed = 3.6;
+  player.vx = 0;
+  if(input.left){ player.vx = -speed; player.facing='left'; }
+  if(input.right){ player.vx = speed; player.facing='right'; }
+  player.x += player.vx;
+
+  // clamp inside level
+  player.x = clamp(player.x, 12, levelWidth - player.w - 12);
+
+  // camera follows when player moves right
+  const viewCenter = W * 0.38;
+  cameraX = clamp(player.x - viewCenter, 0, levelWidth - W);
+
+  // gravity
+  if(input.jump && player.onGround){ player.vy = -11; player.onGround=false; }
+  player.vy += 0.6;
+  player.y += player.vy;
+  if(player.y + player.h >= H - 20){ player.y = H - 20 - player.h; player.vy = 0; player.onGround = true; }
+
+  // shooting
+  if(input.shoot && player.shootCooldown <= 0){
+    const dir = player.facing === 'right' ? 1 : -1;
+    bullets.push({ x: player.x + (dir===1?player.w: -12), y: player.y + player.h*0.45, vx: 12*dir, w:10, h:5, life:200 });
+    player.shootCooldown = 12;
+  }
+  if(player.shootCooldown>0) player.shootCooldown--;
+
+  // try to activate enemies near player (respect MAX_ACTIVE)
+  for(let cfg of levelData){
+    if(activated.has(cfg.id)) continue;
+    if(player.x >= cfg.trigger - TRIGGER_MARGIN && enemies.length < MAX_ACTIVE){
+      spawnFrom(cfg);
+      activated.add(cfg.id);
+    }
+  }
+
+  // update enemies
+  for(let i=enemies.length-1;i>=0;i--){
+    const e = enemies[i];
+    e.x += e.vx;
+    if(e.x < e.minX){ e.x = e.minX; e.vx = Math.abs(e.vx); }
+    if(e.x + e.w > e.maxX){ e.x = e.maxX - e.w; e.vx = -Math.abs(e.vx); }
+    // jumper behavior
+    if(e.type === 'jumper' && Math.random()<0.007 && e.onGround !== false){
+      e.vy = -10 - Math.random()*4;
+      e.onGround = false;
+    }
+    if(e.vy !== undefined){
+      e.vy = (e.vy||0) + 0.6; e.y += e.vy;
+      if(e.y + e.h >= H - 20){ e.y = H - 20 - e.h; e.vy = 0; e.onGround = true; }
+    }
+    // shooting at player if in range
+    const dx = (player.x - e.x);
+    if(Math.abs(dx) <= e.shootRange && e.shootCooldown <= 0){
+      const dir = dx >= 0 ? 1 : -1;
+      enemyBullets.push({ x: e.x + e.w/2, y: e.y + e.h/2, vx: dir*5, vy:0, w:8, h:6, life:300 });
+      e.shootCooldown = 60 + Math.floor(Math.random()*80);
+    }
+    if(e.shootCooldown>0) e.shootCooldown--;
+    // dead?
+    if(e.hp <= 0){
+      spawnExplosion(e.x, e.y);
+      enemies.splice(i,1);
+      score += 40;
+      continue;
+    }
+  }
+
+  // update bullets
+  for(let i=bullets.length-1;i>=0;i--){
+    const b = bullets[i]; b.x += b.vx; b.life--;
+    if(b.life<=0) bullets.splice(i,1);
+    else {
+      // collision with enemies
+      for(let j=enemies.length-1;j>=0;j--){
+        if(rects(b,enemies[j])){
+          enemies[j].hp -= 1;
+          bullets.splice(i,1);
+          break;
+        }
+      }
+    }
+  }
+
+  // enemy bullets -> player
+  for(let i=enemyBullets.length-1;i>=0;i--){
+    const b = enemyBullets[i]; b.x += b.vx; b.life--;
+    if(b.life<=0) enemyBullets.splice(i,1);
+    else if(rects(b, player)){
+      enemyBullets.splice(i,1);
+      hurtPlayer();
+    }
+  }
+
+  // particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    p.x += p.vx; p.y += p.vy; p.vy += 0.25; p.life--;
+    if(p.life<=0) particles.splice(i,1);
+  }
+
+  // update HUD
+  scoreDOM.textContent = 'Score: ' + score;
+  livesDOM.textContent = 'Lives: ' + lives;
+  posDOM.textContent = 'X: ' + Math.floor(player.x);
+}
+
+/* render with camera */
+function render(){
+  ctx.clearRect(0,0,W,H);
+  // background sky
+  ctx.fillStyle = '#03191a'; ctx.fillRect(0,0,W,H);
+  // ground
+  ctx.fillStyle = '#0f2a2a'; ctx.fillRect(0,H-20,W,20);
+  // grid markers to show progression
+  ctx.fillStyle = 'rgba(255,255,255,0.02)';
+  for(let gx=0; gx<levelWidth; gx+=200){
+    const sx = gx - cameraX;
+    ctx.fillRect(sx, H-22, 2, 12);
+  }
+  // enemies
+  for(const e of enemies){
+    const ex = e.x - cameraX, ey = e.y;
+    ctx.fillStyle = e.type==='mini-boss' ? '#993344' : '#ff6b6b';
+    ctx.fillRect(ex, ey, e.w, e.h);
+    if(e.type==='mini-boss'){
+      ctx.fillStyle = '#222'; ctx.fillRect(ex, ey-8, e.w, 6);
+      const pct = e.hp / 20; ctx.fillStyle = '#0f6'; ctx.fillRect(ex, ey-8, e.w*pct, 6);
+    }
+  }
+  // bullets
+  ctx.fillStyle = '#ffd24d'; for(const b of bullets) ctx.fillRect(b.x - cameraX, b.y, b.w, b.h);
+  ctx.fillStyle = '#ff7b7b'; for(const b of enemyBullets) ctx.fillRect(b.x - cameraX, b.y, b.w, b.h);
+  // player
+  drawPlayer(player.x - cameraX, player.y, player.w, player.h, player.facing);
+  // particles
+  for(const p of particles) ctx.fillStyle = p.col, ctx.fillRect(p.x - cameraX, p.y, 3,3);
+}
+
+/* simple player draw */
+function drawPlayer(sx, sy, w, h, facing){
+  ctx.fillStyle = '#06b07a'; ctx.fillRect(sx, sy, w, h);
+  ctx.fillStyle = '#023d2b'; ctx.fillRect(sx, sy, w, Math.floor(h*0.28));
+  ctx.fillStyle = '#222';
+  if(facing==='right') ctx.fillRect(sx + w - 12, sy + Math.floor(h*0.28), 8, 8);
+  else ctx.fillRect(sx + 6, sy + Math.floor(h*0.28), 8,8);
+  // gun stub
+  ctx.fillStyle = '#333';
+  if(facing==='right') ctx.fillRect(sx + w, sy + Math.floor(h*0.36), Math.floor(w*0.8), Math.floor(h*0.18));
+  else ctx.fillRect(sx - Math.floor(w*0.8), sy + Math.floor(h*0.36), Math.floor(w*0.8), Math.floor(h*0.18));
+}
+
+/* explosion */
+function spawnExplosion(x,y){
+  for(let i=0;i<12;i++) particles.push({ x:x+rand(-8,8), y:y+rand(-8,8), vx:(Math.random()-0.5)*6, vy:(Math.random()-0.5)*6 - 1, life:20+rand(0,30), col: ['#ff9a6b','#ff6b6b','#ffd24d'][rand(0,2)] });
+}
+
+/* player hurt */
+function hurtPlayer(){
+  lives = Math.max(0, lives - 1);
+  spawnExplosion(player.x, player.y);
+  player.x = Math.max(80, player.x - 120);
+  player.vx = 0; player.vy = 0;
+  if(lives === 0){
+    alert('Game Over! Score: ' + score);
+    resetGame();
+  }
+}
+
+/* input state */
+const input = { left:false, right:false, jump:false, shoot:false };
+
+/* keyboard */
+window.addEventListener('keydown', e=>{
+  if(e.key === 'ArrowLeft') input.left = true, player.facing='left';
+  if(e.key === 'ArrowRight') input.right = true, player.facing='right';
+  if(e.key === ' ' || e.key === 'ArrowUp') input.jump = true;
+  if(e.key.toLowerCase()==='z') input.shoot = true;
+});
+window.addEventListener('keyup', e=>{
+  if(e.key === 'ArrowLeft') input.left = false;
+  if(e.key === 'ArrowRight') input.right = false;
+  if(e.key === ' ' || e.key === 'ArrowUp') input.jump = false;
+  if(e.key.toLowerCase()==='z') input.shoot = false;
+});
+
+/* touch wiring (buttons) */
+function wire(btn, prop){ 
+  btn.addEventListener('touchstart', ev => { ev.preventDefault(); input[prop] = true; }, {passive:false});
+  btn.addEventListener('touchend', ev => { ev.preventDefault(); input[prop] = false; }, {passive:false});
+  btn.addEventListener('mousedown', ()=> input[prop]=true);
+  btn.addEventListener('mouseup', ()=> input[prop]=false);
+  btn.addEventListener('mouseleave', ()=> input[prop]=false);
+}
+wire(controls.left,'left'); wire(controls.right,'right'); wire(controls.jump,'jump'); wire(controls.fire,'shoot');
+
+/* game loop */
+let last=0;
+function loop(ts){
+  if(!last) last=ts;
+  const dt=(ts-last)/16.666; last=ts;
+  if(running && !paused){
+    // map input to player fields
+    if(input.left) player.facing='left';
+    if(input.right) player.facing='right';
+    // translate input to internal short flags
+    // update
+    update();
+    render();
+  }
+  requestAnimationFrame(loop);
+}
+
+/* Start/reset */
+function resetGame(){
+  // reset
+  player.x = 80; player.y = H-140; player.vx=0; player.vy=0; player.onGround=true; player.facing='right'; player.shootCooldown=0;
+  bullets = []; enemyBullets=[]; enemies=[]; particles=[];
+  activated.clear();
+  cameraX = 0; score=0; lives=3;
+  document.getElementById('score').textContent = 'Score: 0';
+  document.getElementById('lives').textContent = 'Lives: 3';
+}
+resetGame();
+
+startBtn.addEventListener('click', ()=>{
+  title.style.display = 'none';
+  running = true;
+  requestAnimationFrame(loop);
+});
+
+/* helper to restart mid-game if needed */
+window.resetGame = resetGame;
+
+</script>
+</body>
+</html>
