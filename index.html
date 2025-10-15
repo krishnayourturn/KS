@@ -5,23 +5,22 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Shakrit — playable</title>
 <style>
-html,body{height:100%;margin:0;background:#071018;color:#fff;font-family:Arial,Helvetica,sans-serif}
-#title{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:60;background:linear-gradient(#000,#071016)}
-#title h1{margin:0;font-size:56px;color:#00ff99;text-shadow:0 6px 18px rgba(0,0,0,0.8)}
-.btn{padding:12px 22px;margin:8px;border-radius:8px;border:0;background:#0b6;cursor:pointer;font-weight:700}
-#canvasWrap{display:flex;justify-content:center;align-items:center;height:100vh;padding:12px;box-sizing:border-box}
-canvas{border:3px solid rgba(255,255,255,0.04);max-width:100%;height:auto;display:block}
-#controls{position:fixed;left:0;right:0;bottom:12px;display:flex;justify-content:space-between;padding:0 20px;z-index:70;pointer-events:none}
-.leftControls,.rightControls{display:flex;gap:10px;pointer-events:auto}
-.ctrl{width:64px;height:64px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:22px;user-select:none;touch-action:none}
-.ctrl.big{width:92px;height:72px}
-#hud{position:fixed;left:12px;top:12px;display:flex;gap:12px;z-index:75}
-.panel{background:rgba(0,0,0,0.45);padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);font-weight:700}
+html,body{height:100%;margin:0;background:#071018;color:#fff;font-family:Arial,Helvetica,sans-serif;}
+#title{position:fixed;inset:0;display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:60;background:linear-gradient(#000,#071016);}
+#title h1{margin:0;font-size:56px;color:#00ff99;text-shadow:0 6px 18px rgba(0,0,0,0.8);}
+.btn{padding:12px 22px;margin:8px;border-radius:8px;border:0;background:#0b6;cursor:pointer;font-weight:700;}
+#canvasWrap{display:flex;justify-content:center;align-items:center;height:100vh;padding:12px;box-sizing:border-box;}
+canvas{background:linear-gradient(#071018,#021015);border:3px solid rgba(255,255,255,0.04);max-width:100%;height:auto;display:block;}
+#controls{position:fixed;left:0;right:0;bottom:12px;display:flex;justify-content:space-between;padding:0 20px;z-index:70;pointer-events:none;}
+.leftControls,.rightControls{display:flex;gap:10px;pointer-events:auto;}
+.ctrl{width:64px;height:64px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:22px;user-select:none;touch-action:none;}
+.ctrl.big{width:92px;height:72px;}
+#hud{position:fixed;left:12px;top:12px;display:flex;gap:12px;z-index:75;}
+.panel{background:rgba(0,0,0,0.45);padding:8px 12px;border-radius:8px;border:1px solid rgba(255,255,255,0.03);font-weight:700;}
 @media(max-width:600px){ .ctrl{width:52px;height:52px;font-size:18px} .ctrl.big{width:84px;height:64px} #title h1{font-size:36px} }
 </style>
 </head>
 <body>
-
 <!-- Title -->
 <div id="title">
   <h1>Shakrit</h1>
@@ -58,16 +57,19 @@ canvas{border:3px solid rgba(255,255,255,0.04);max-width:100%;height:auto;displa
 </div>
 
 <script>
+// CANVAS SETUP
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
 
+// DOM ELEMENTS
 const startBtn = document.getElementById('startBtn');
 const title = document.getElementById('title');
 const scoreDOM = document.getElementById('score');
 const livesDOM = document.getElementById('lives');
 const levelDOM = document.getElementById('level');
 
+// TOUCH CONTROLS
 const controls = {
   left: document.getElementById('btnLeft'),
   right: document.getElementById('btnRight'),
@@ -75,103 +77,213 @@ const controls = {
   fire: document.getElementById('btnFire')
 };
 
+// GAME STATE
 let running = false;
 let paused = false;
+let score = 0, lives = 3;
+let cameraX = 0;
 
-/* --- Level & player setup --- */
+// PLAYER
+const player = {
+  x: 80,
+  y: 0,
+  w: 40,
+  h: 60,
+  vx:0,
+  vy:0,
+  speed:3.6,
+  onGround:true,
+  facing:'right',
+  shootCooldown:0
+};
+
+// LEVELS
 let levelIndex = 0;
 const levels = [
-  {width:4000, playerStartX:80, enemies:[
+  {
+    width: 4000,
+    playerStartX: 80,
+    enemies:[
       {id:1,x:600,patrol:160,type:'grunt',hp:2,shootRange:240,trigger:520},
       {id:2,x:1200,patrol:120,type:'grunt',hp:2,shootRange:220,trigger:1140},
       {id:3,x:1800,patrol:200,type:'jumper',hp:3,shootRange:220,trigger:1760},
       {id:4,x:2600,patrol:220,type:'sniper',hp:2,shootRange:380,trigger:2560},
       {id:5,x:3400,patrol:220,type:'grunt',hp:2,shootRange:240,trigger:3340}
-  ], levelEndX:3800}
+    ],
+    levelEndX: 3800
+  },
+  {
+    width: 5200,
+    playerStartX: 80,
+    enemies:[
+      {id:1,x:500,patrol:120,type:'grunt',hp:2,shootRange:220,trigger:440},
+      {id:2,x:1000,patrol:160,type:'grunt',hp:2,shootRange:220,trigger:940},
+      {id:3,x:1700,patrol:200,type:'jumper',hp:3,shootRange:220,trigger:1660},
+      {id:4,x:2400,patrol:260,type:'sniper',hp:2,shootRange:420,trigger:2340},
+      {id:5,x:3800,patrol:300,type:'mini',hp:12,shootRange:320,trigger:3740}
+    ],
+    levelEndX: 4800
+  }
 ];
-
 let levelData = levels[levelIndex];
 let levelWidth = levelData.width;
 
-const camera = {x:0};
-const groundY = H - H*0.3; // 30% above bottom
-const player = {x:80,y:groundY-60,w:40,h:60,vx:0,vy:0,speed:3.6,onGround:true,facing:'right',shootCooldown:0};
-
-let bullets=[],enemyBullets=[],enemies=[],particles=[];
-let score=0,lives=3;
-const input={left:false,right:false,jump:false,shoot:false};
+// OBJECTS
+let bullets=[], enemyBullets=[], enemies=[], particles=[];
 const activated = new Set();
 const MAX_ACTIVE = 3;
 const TRIGGER_MARGIN = 80;
 
-/* --- Load images (transparent PNGs) --- */
+// INPUT
+const input = {left:false,right:false,jump:false,shoot:false};
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft') input.left=true,player.facing='left';
+  if(e.key==='ArrowRight') input.right=true,player.facing='right';
+  if(e.key===' '||e.key==='ArrowUp') input.jump=true;
+  if(e.key.toLowerCase()==='z') input.shoot=true;
+  if(e.key.toLowerCase()==='p') running=!running;
+});
+window.addEventListener('keyup', e=>{
+  if(e.key==='ArrowLeft') input.left=false;
+  if(e.key==='ArrowRight') input.right=false;
+  if(e.key===' '||e.key==='ArrowUp') input.jump=false;
+  if(e.key.toLowerCase()==='z') input.shoot=false;
+});
+
+// TOUCH WIRING
+function wire(el, prop){
+  el.addEventListener('touchstart', ev=>{ev.preventDefault();input[prop]=true;},{passive:false});
+  el.addEventListener('touchend', ev=>{ev.preventDefault();input[prop]=false;},{passive:false});
+  el.addEventListener('mousedown', ()=>input[prop]=true);
+  el.addEventListener('mouseup', ()=>input[prop]=false);
+  el.addEventListener('mouseleave', ()=>input[prop]=false);
+}
+wire(controls.left,'left'); wire(controls.right,'right'); wire(controls.jump,'jump'); wire(controls.fire,'shoot');
+
+// IMAGE LOADING
 const playerImg = new Image(); playerImg.src="assets/player/Player.PNG";
 const enemyImg = new Image(); enemyImg.src="assets/enemies/Enemy.PNG";
 const bgImg = new Image(); bgImg.src="assets/background/Background.png";
 
-/* --- Game functions --- */
+// UTILS
 function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
 function rand(min,max){return Math.floor(Math.random()*(max-min+1))+min;}
-function rects(a,b){return !(a.x+a.w < b.x || a.x > b.x+b.w || a.y+a.h < b.y || a.y > b.y + b.h);}
+function rects(a,b){return !(a.x+a.w<b.x||a.x>b.x+b.w||a.y+a.h<b.y||a.y>b.y+b.h);}
 
+// SPAWN ENEMY
 function spawnFrom(cfg){
-  const e={id:cfg.id,type:cfg.type,x:cfg.x,y:groundY-48,baseX:cfg.x,w:44,h:48,vx:(Math.random()<0.5?-1:1)*(0.6 + Math.random()*1.2),minX:cfg.x-cfg.patrol/2,maxX:cfg.x+cfg.patrol/2,hp:cfg.hp,shootRange:cfg.shootRange,shootCooldown:rand(40,120),onGround:true};
+  const e = {
+    id:cfg.id,type:cfg.type,x:cfg.x,y:H*0.7-60,baseX:cfg.x,w:44,h:48,
+    vx:(Math.random()<0.5?-1:1)*(0.6+Math.random()*1.2),
+    minX:cfg.x-cfg.patrol/2,maxX:cfg.x+cfg.patrol/2,
+    hp:cfg.hp,shootRange:cfg.shootRange,shootCooldown:rand(40,120)
+  };
   e.minX = Math.max(40,e.minX);
   e.maxX = Math.min(levelWidth-80,e.maxX);
+  e.onGround = true;
+  e.vy = 0;
   enemies.push(e);
 }
 
+// SPAWN EXPLOSION
 function spawnExplosion(x,y){
-  for(let i=0;i<12;i++)
-    particles.push({x:x+rand(-8,8),y:y+rand(-8,8),vx:(Math.random()-0.5)*6,vy:(Math.random()-0.5)*6-1,life:20+rand(0,30),col:['#ff9a6b','#ff6b6b','#ffd24d'][rand(0,2)]});
+  for(let i=0;i<12;i++){
+    particles.push({
+      x:x+rand(-8,8),y:y+rand(-8,8),
+      vx:(Math.random()-0.5)*6,vy:(Math.random()-0.5)*6-1,
+      life:20+rand(0,30),
+      col:['#ff9a6b','#ff6b6b','#ffd24d'][rand(0,2)]
+    });
+  }
 }
 
+// PLAYER HURT
 function hurtPlayer(){
-  lives=Math.max(0,lives-1);
+  lives = Math.max(0,lives-1);
   spawnExplosion(player.x,player.y);
-  player.x = Math.max(80,player.x - 140);
-  player.vx=player.vy=0;
-  if(lives===0){running=false; setTimeout(()=>alert('Game Over! Score: '+score),40); resetAndShowTitle();}
+  player.x = Math.max(80,player.x-140);
+  player.vx = player.vy = 0;
+  if(lives===0){
+    running=false;
+    setTimeout(()=>alert('Game Over! Score: '+score),40);
+    resetAndShowTitle();
+  }
 }
 
-/* --- Update --- */
+// LEVEL START
+function startLevel(index){
+  levelIndex=index;
+  levelData=levels[levelIndex];
+  levelWidth=levelData.width;
+  activated.clear();
+  enemies.length=0; bullets.length=0; enemyBullets.length=0; particles.length=0;
+  player.x=levelData.playerStartX;
+  player.y=H*0.7-60;
+  player.vx=player.vy=0;
+  player.onGround=true;
+  player.shootCooldown=0;
+  score=0;
+  lives=3;
+  running=true;
+  title.style.display='none';
+}
+
+// RESET TO TITLE
+function resetAndShowTitle(){
+  running=false;
+  title.style.display='flex';
+}
+
+// UPDATE LOOP
 function update(){
-  player.vx = 0;
-  if(input.left){player.vx=-player.speed;player.facing='left';}
-  if(input.right){player.vx=player.speed;player.facing='right';}
+  // PLAYER MOVEMENT
+  player.vx=0;
+  if(input.left) player.vx=-player.speed,player.facing='left';
+  if(input.right) player.vx=player.speed,player.facing='right';
   player.x += player.vx;
   player.x = clamp(player.x,12,levelWidth-player.w-12);
 
-  camera.x = clamp(player.x-W*0.38,0,levelWidth-W);
+  // CAMERA
+  const viewCenter=W*0.38;
+  cameraX = clamp(player.x-viewCenter,0,levelWidth-W);
 
+  // JUMP
   if(input.jump && player.onGround){player.vy=-11;player.onGround=false;}
-  player.vy +=0.6;
+  player.vy+=0.6;
   player.y += player.vy;
-  if(player.y+player.h>=groundY){player.y=groundY-player.h;player.vy=0;player.onGround=true;}
+  if(player.y+player.h>=H*0.7){player.y=H*0.7-player.h;player.vy=0;player.onGround=true;}
 
+  // SHOOT
   if(input.shoot && player.shootCooldown<=0){
     const dir = player.facing==='right'?1:-1;
-    bullets.push({x:player.x+(dir===1?player.w-6:-6),y:player.y+player.h*0.45,vx:12*dir,w:10,h:5,life:200});
+    bullets.push({
+      x:player.x + (dir===1?player.w-4:-12),
+      y:player.y+player.h*0.45,
+      vx:12*dir,w:10,h:5,life:200
+    });
     player.shootCooldown=12;
   }
   if(player.shootCooldown>0) player.shootCooldown--;
 
+  // ENEMY SPAWN
   for(const cfg of levelData.enemies){
     if(activated.has(cfg.id)) continue;
-    if(player.x>=cfg.trigger-TRIGGER_MARGIN && enemies.length<MAX_ACTIVE){
+    if(player.x >= cfg.trigger-TRIGGER_MARGIN && enemies.length<MAX_ACTIVE){
       spawnFrom(cfg);
       activated.add(cfg.id);
     }
   }
 
+  // ENEMY UPDATE
   for(let i=enemies.length-1;i>=0;i--){
-    const e=enemies[i];
+    const e = enemies[i];
     e.x+=e.vx;
     if(e.x<e.minX){e.x=e.minX;e.vx=Math.abs(e.vx);}
     if(e.x+e.w>e.maxX){e.x=e.maxX-e.w;e.vx=-Math.abs(e.vx);}
     if(e.type==='jumper' && Math.random()<0.006 && e.onGround){e.vy=-9-Math.random()*4;e.onGround=false;}
-    if(e.vy!==undefined){e.vy+=0.6;e.y+=e.vy;if(e.y+e.h>=groundY){e.y=groundY-e.h;e.vy=0;e.onGround=true;}}
-    const dx = player.x - e.x;
+    if(e.vy!==undefined){e.vy+=0.6;e.y+=e.vy;if(e.y+e.h>=H*0.7){e.y=H*0.7-e.h;e.vy=0;e.onGround=true;}}
+
+    const dx = (player.x - e.x);
     if(Math.abs(dx)<=e.shootRange && e.shootCooldown<=0){
       const dir = dx>=0?1:-1;
       enemyBullets.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:5*dir,vy:0,w:8,h:6,life:300});
@@ -179,137 +291,57 @@ function update(){
     }
     if(e.shootCooldown>0) e.shootCooldown--;
 
-    if(e.hp<=0){spawnExplosion(e.x,e.y);enemies.splice(i,1);score+=40;continue;}
+    if(e.hp<=0){spawnExplosion(e.x,e.y);enemies.splice(i,1);score+=40;}
   }
 
+  // PLAYER BULLETS
   for(let i=bullets.length-1;i>=0;i--){
-    const b=bullets[i];b.x+=b.vx;b.life--;
+    const b = bullets[i]; b.x+=b.vx; b.life--;
     if(b.life<=0){bullets.splice(i,1);continue;}
     for(let j=enemies.length-1;j>=0;j--){
       if(rects(b,enemies[j])){enemies[j].hp-=1;bullets.splice(i,1);break;}
     }
   }
 
+  // ENEMY BULLETS
   for(let i=enemyBullets.length-1;i>=0;i--){
-    const b=enemyBullets[i];b.x+=b.vx;b.life--;
-    if(b.life<=0){enemyBullets.splice(i,1);}
+    const b = enemyBullets[i]; b.x+=b.vx;b.life--;
+    if(b.life<=0) enemyBullets.splice(i,1);
     else if(rects(b,player)){enemyBullets.splice(i,1);hurtPlayer();}
   }
 
+  // PARTICLES
   for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.2;p.life--;if(p.life<=0)particles.splice(i,1);
+    const p = particles[i]; p.x+=p.vx;p.y+=p.vy;p.vy+=0.2;p.life--;if(p.life<=0)particles.splice(i,1);
   }
 
+  // LEVEL END
   if(player.x>=levelData.levelEndX){
-    running=false;
-    setTimeout(()=>alert('You finished the level! Score: '+score),50);
-    resetAndShowTitle();
+    if(levelIndex+1<levels.length){startLevel(levelIndex+1);}
+    else{running=false;setTimeout(()=>alert('You finished the game! Score: '+score),80);}
   }
 
+  // HUD UPDATE
   scoreDOM.textContent='Score: '+score;
   livesDOM.textContent='Lives: '+lives;
   levelDOM.textContent='Level: '+(levelIndex+1);
 }
 
-/* --- Render --- */
+// RENDER
 function render(){
   ctx.clearRect(0,0,W,H);
-  // background image
-  if(bgImg.complete && bgImg.naturalWidth!==0){
-    ctx.drawImage(bgImg,-camera.x,0,levelWidth,H);
-  } else {
-    ctx.fillStyle='#03191a'; ctx.fillRect(0,0,W,H);
-  }
-  // ground
-  ctx.fillStyle='#0f2a2a'; ctx.fillRect(0,groundY,W,H-groundY);
 
-  // enemies
-  for(const e of enemies){
-    const ex=e.x-camera.x,ey=e.y;
-    if(enemyImg.complete && enemyImg.naturalWidth!==0){
-      ctx.drawImage(enemyImg,ex,ey,e.w,e.h);
-    } else {ctx.fillStyle='#ff6b6b'; ctx.fillRect(ex,ey,e.w,e.h);}
-  }
-  // bullets
-  ctx.fillStyle='#ffd24d'; for(const b of bullets) ctx.fillRect(b.x-camera.x,b.y,b.w,b.h);
-  ctx.fillStyle='#ff7b7b'; for(const b of enemyBullets) ctx.fillRect(b.x-camera.x,b.y,b.w,b.h);
+  // BACKGROUND IMAGE
+  if(bgImg.complete && bgImg.naturalWidth!==0){ctx.drawImage(bgImg,-cameraX,0,levelWidth,H);}
+  else{ctx.fillStyle='#03191a';ctx.fillRect(0,0,W,H);}
 
-  // player
-  drawPlayer(player.x-camera.x,player.y,player.w,player.h,player.facing);
+  // GROUND
+  ctx.fillStyle='#0f2a2a';
+  ctx.fillRect(0,H*0.7,W,H*0.7);
 
-  // particles
-  for(const p of particles){ctx.fillStyle=p.col;ctx.fillRect(p.x-camera.x,p.y,3,3);}
-}
+  // PROGRESS MARKERS
+  ctx.fillStyle='rgba(255,255,255,0.02)';
+  for(let gx=0;gx<levelWidth;gx+=200){ctx.fillRect(gx-cameraX,H*0.7-2,2,12);}
 
-function drawPlayer(sx,sy,w,h,facing){
-  if(playerImg.complete && playerImg.naturalWidth!==0){
-    ctx.save();
-    ctx.imageSmoothingEnabled=true;
-    if(facing==='left'){
-      ctx.translate(sx+w/2,0);
-      ctx.scale(-1,1);
-      ctx.drawImage(playerImg,-(sx+w/2)-w/2,sy,w,h);
-    } else {ctx.drawImage(playerImg,sx,sy,w,h);}
-    ctx.restore();
-  } else {
-    ctx.fillStyle='#06b07a'; ctx.fillRect(sx,sy,w,h);
-  }
-}
-
-/* --- Input --- */
-window.addEventListener('keydown',e=>{
-  if(e.key==='ArrowLeft') input.left=true,player.facing='left';
-  if(e.key==='ArrowRight') input.right=true,player.facing='right';
-  if(e.key===' '||e.key==='ArrowUp') input.jump=true;
-  if(e.key.toLowerCase()==='z') input.shoot=true;
-  if(e.key.toLowerCase()==='p') running=!running;
-});
-window.addEventListener('keyup',e=>{
-  if(e.key==='ArrowLeft') input.left=false;
-  if(e.key==='ArrowRight') input.right=false;
-  if(e.key===' '||e.key==='ArrowUp') input.jump=false;
-  if(e.key.toLowerCase()==='z') input.shoot=false;
-});
-
-function wire(el,prop){
-  el.addEventListener('touchstart',ev=>{ev.preventDefault();input[prop]=true;},{passive:false});
-  el.addEventListener('touchend',ev=>{ev.preventDefault();input[prop]=false;},{passive:false});
-  el.addEventListener('mousedown',()=>input[prop]=true);
-  el.addEventListener('mouseup',()=>input[prop]=false);
-  el.addEventListener('mouseleave',()=>input[prop]=false);
-}
-wire(controls.left,'left');wire(controls.right,'right');wire(controls.jump,'jump');wire(controls.fire,'shoot');
-
-/* --- Main loop --- */
-let lastTs=0;
-function step(ts){
-  if(!lastTs) lastTs=ts;
-  const dt=(ts-lastTs)/16.666;
-  lastTs=ts;
-  if(running && !paused){update();render();}
-  requestAnimationFrame(step);
-}
-
-/* --- Level control --- */
-function startLevel(index){
-  levelIndex=index;
-  levelData=levels[levelIndex];
-  levelWidth=levelData.width;
-  activated.clear();
-  enemies.length=bullets.length=enemyBullets.length=particles.length=0;
-  player.x=levelData.playerStartX;player.y=groundY-60;player.vx=player.vy=0;player.onGround=true;player.shootCooldown=0;
-  score=0;lives=3;
-  running=true;title.style.display='none';
-}
-
-function resetAndShowTitle(){running=false;title.style.display='flex';}
-
-/* --- Init --- */
-startBtn.addEventListener('click',()=>startLevel(0));
-document.getElementById('settingsBtn').addEventListener('click',()=>alert('Settings: none'));
-resetAndShowTitle();
-requestAnimationFrame(step);
-
-</script>
-</body>
-</html>
+  // ENEMIES
+ 
