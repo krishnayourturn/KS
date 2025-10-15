@@ -22,7 +22,6 @@
 </head>
 <body>
 
-<!-- Title -->
 <div id="title">
   <h1>Shakrit</h1>
   <div style="margin:8px;color:#9fb">Side-scroller Prototype — touch or keyboard</div>
@@ -33,19 +32,16 @@
   <div style="margin-top:6px;color:#9fb;font-size:13px">Controls: ← → move, Space jump, Z shoot; touch buttons below</div>
 </div>
 
-<!-- HUD -->
 <div id="hud" aria-hidden>
   <div class="panel" id="score">Score: 0</div>
   <div class="panel" id="lives">Lives: 3</div>
   <div class="panel" id="level">Level: 1</div>
 </div>
 
-<!-- Canvas -->
 <div id="canvasWrap">
   <canvas id="game" width="1000" height="560"></canvas>
 </div>
 
-<!-- Touch Controls -->
 <div id="controls">
   <div class="leftControls">
     <div id="btnLeft" class="ctrl">◀</div>
@@ -58,14 +54,6 @@
 </div>
 
 <script>
-/* Working side-scroller — now drawing images where available,
-   with fallbacks to the box-drawing so nothing breaks.
-   Uses your uploaded images (case-sensitive paths):
-     assets/player/Player.PNG
-     assets/enemies/Enemy.PNG
-     assets/background/Background.png
-*/
-
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
@@ -86,7 +74,10 @@ const controls = {
 let running = false;
 let paused = false;
 
-/* Game data (two levels) */
+/* ---------- GROUND ---------- */
+const GROUND_Y = H * 0.6; // ~40% from top
+
+/* Game data */
 let levelIndex = 0;
 const levels = [
   {
@@ -120,7 +111,7 @@ let levelWidth = levelData.width;
 
 /* Camera & player */
 let cameraX = 0;
-const player = { x: 80, y: H-140, w:40, h:60, vx:0, vy:0, speed:3.6, onGround:true, facing:'right', shootCooldown:0 };
+const player = { x: 80, y: GROUND_Y-60, w:40, h:60, vx:0, vy:0, speed:3.6, onGround:true, facing:'right', shootCooldown:0 };
 
 let bullets = [], enemyBullets = [], enemies = [], particles = [];
 let score = 0, lives = 3;
@@ -150,10 +141,10 @@ bgImg.src = "assets/background/Background.png";
 bgImg.onload = ()=> console.log('background loaded');
 bgImg.onerror = ()=> console.warn('background failed to load — will use color fallback');
 
-/* ---------- Gameplay functions (unchanged logic) ---------- */
+/* ---------- Gameplay ---------- */
 function spawnFrom(cfg){
   const e = {
-    id: cfg.id, type: cfg.type, x: cfg.x, y: H-140, baseX: cfg.x,
+    id: cfg.id, type: cfg.type, x: cfg.x, y: GROUND_Y-48, baseX: cfg.x,
     w:44, h:48, vx: (Math.random()<0.5?-1:1)*(0.6 + Math.random()*1.2),
     minX: cfg.x - cfg.patrol/2, maxX: cfg.x + cfg.patrol/2,
     hp: cfg.hp, shootRange: cfg.shootRange, shootCooldown: rand(40,120)
@@ -176,11 +167,12 @@ function update(){
   if(input.jump && player.onGround){ player.vy = -11; player.onGround=false; }
   player.vy += 0.6;
   player.y += player.vy;
-  if(player.y + player.h >= H - 20){ player.y = H - 20 - player.h; player.vy = 0; player.onGround = true; }
+  if(player.y + player.h >= GROUND_Y){ player.y = GROUND_Y - player.h; player.vy = 0; player.onGround = true; }
 
   if(input.shoot && player.shootCooldown <= 0){
-    const dir = player.facing === 'right' ? 1 : -1;
-    bullets.push({ x: player.x + (dir===1?player.w:-12), y: player.y + player.h*0.45, vx:12*dir, w:10, h:5, life:200 });
+    const bulletX = player.facing === 'right' ? player.x + player.w : player.x - 10;
+    const bulletDir = player.facing === 'right' ? 1 : -1;
+    bullets.push({ x: bulletX, y: player.y + player.h*0.45, vx: 12*bulletDir, w:10, h:5, life:200 });
     player.shootCooldown = 12;
   }
   if(player.shootCooldown>0) player.shootCooldown--;
@@ -202,7 +194,7 @@ function update(){
     if(e.type === 'jumper' && Math.random()<0.006 && e.onGround !== false){
       e.vy = -9 - Math.random()*4; e.onGround = false;
     }
-    if(e.vy !== undefined){ e.vy = (e.vy||0) + 0.6; e.y += e.vy; if(e.y + e.h >= H - 20){ e.y = H - 20 - e.h; e.vy = 0; e.onGround = true; } }
+    if(e.vy !== undefined){ e.vy = (e.vy||0) + 0.6; e.y += e.vy; if(e.y + e.h >= GROUND_Y){ e.y = GROUND_Y - e.h; e.vy = 0; e.onGround = true; } }
 
     const dx = (player.x - e.x);
     if(Math.abs(dx) <= e.shootRange && e.shootCooldown <= 0){
@@ -255,57 +247,40 @@ function update(){
   levelDOM.textContent = 'Level: ' + (levelIndex + 1);
 }
 
-/* ---------- RENDER with image fallbacks ---------- */
+/* ---------- RENDER ---------- */
 function render(){
   ctx.clearRect(0,0,W,H);
 
-  // background: use image stretched across level width if available, else color band
+  // background
   if(bgImg.complete && bgImg.naturalWidth !== 0){
-    // draw a repeated background effect that scrolls
-    // we draw the background image scaled to levelWidth width, offset by cameraX
-    try {
-      ctx.drawImage(bgImg, -cameraX, 0, levelWidth, H);
-    } catch(e){
-      // if drawImage fails, fallback to color
-      ctx.fillStyle = '#03191a'; ctx.fillRect(0,0,W,H);
-    }
-  } else {
-    ctx.fillStyle = '#03191a'; ctx.fillRect(0,0,W,H);
-  }
+    try { ctx.drawImage(bgImg, -cameraX, 0, levelWidth, H); } 
+    catch(e){ ctx.fillStyle='#03191a'; ctx.fillRect(0,0,W,H); }
+  } else ctx.fillStyle='#03191a'; ctx.fillRect(0,0,W,H);
 
   // ground
-  ctx.fillStyle = '#0f2a2a'; ctx.fillRect(0,H-20,W,20);
+  ctx.fillStyle='#0f2a2a'; ctx.fillRect(0,GROUND_Y,W,H-GROUND_Y);
 
   // progress markers
-  ctx.fillStyle = 'rgba(255,255,255,0.02)';
+  ctx.fillStyle='rgba(255,255,255,0.02)';
   for(let gx=0; gx<levelWidth; gx+=200){
     const sx = gx - cameraX;
-    ctx.fillRect(sx, H-22, 2, 12);
+    ctx.fillRect(sx, GROUND_Y-2, 2, 12);
   }
 
-  // enemies (image fallback)
+  // enemies
   for(const e of enemies){
     const ex = e.x - cameraX, ey = e.y;
     if(enemyImg.complete && enemyImg.naturalWidth !== 0){
       ctx.drawImage(enemyImg, ex, ey, e.w, e.h);
-    } else {
-      ctx.fillStyle = '#ff6b6b';
-      ctx.fillRect(ex, ey, e.w, e.h);
-    }
-    if(e.type==='mini' || e.type==='mini-boss'){
-      ctx.fillStyle = '#222'; ctx.fillRect(ex, ey-8, e.w, 6);
-      const pct = e.hp / (e.type==='mini'?12:20); ctx.fillStyle = '#0f6'; ctx.fillRect(ex, ey-8, e.w * Math.max(0,pct), 6);
     }
   }
 
   // bullets
-  ctx.fillStyle = '#ffd24d'; for(const b of bullets) ctx.fillRect(b.x - cameraX, b.y, b.w, b.h);
-  ctx.fillStyle = '#ff7b7b'; for(const b of enemyBullets) ctx.fillRect(b.x - cameraX, b.y, b.w, b.h);
+  ctx.fillStyle='#ffd24d'; for(const b of bullets) ctx.fillRect(b.x - cameraX, b.y, b.w, b.h);
+  ctx.fillStyle='#ff7b7b'; for(const b of enemyBullets) ctx.fillRect(b.x - cameraX, b.y, b.w, b.h);
 
-  // player (image fallback with horizontal flip)
   drawPlayer(player.x - cameraX, player.y, player.w, player.h, player.facing);
 
-  // particles
   for(const p of particles){ ctx.fillStyle = p.col; ctx.fillRect(p.x - cameraX, p.y, 3,3); }
 }
 
@@ -313,76 +288,56 @@ function drawPlayer(sx, sy, w, h, facing){
   if(playerImg.complete && playerImg.naturalWidth !== 0){
     ctx.save();
     if(facing === 'left'){
-      // flip horizontally: translate then scale
-      ctx.translate(sx + w/2, 0);
-      ctx.scale(-1,1);
-      ctx.drawImage(playerImg, - (sx + w/2) - (w/2), sy, w, h);
-    } else {
-      ctx.drawImage(playerImg, sx, sy, w, h);
-    }
+      ctx.translate(sx + w/2, 0); ctx.scale(-1,1);
+      ctx.drawImage(playerImg, -w/2, sy, w, h);
+    } else ctx.drawImage(playerImg, sx, sy, w, h);
     ctx.restore();
-  } else {
-    // fallback box
-    ctx.fillStyle = '#06b07a'; ctx.fillRect(sx, sy, w, h);
-    ctx.fillStyle = '#023d2b'; ctx.fillRect(sx, sy, w, Math.floor(h*0.28));
-    ctx.fillStyle = '#222';
-    if(facing==='right') ctx.fillRect(sx + w - 12, sy + Math.floor(h*0.28), 8, 8);
-    else ctx.fillRect(sx + 6, sy + Math.floor(h*0.28), 8,8);
-    ctx.fillStyle = '#333';
-    if(facing==='right') ctx.fillRect(sx + w, sy + Math.floor(h*0.36), Math.floor(w*0.8), Math.floor(h*0.18));
-    else ctx.fillRect(sx - Math.floor(w*0.8), sy + Math.floor(h*0.36), Math.floor(w*0.8), Math.floor(h*0.18));
   }
 }
 
 /* explosion & damage */
 function spawnExplosion(x,y){
-  for(let i=0;i<12;i++) particles.push({ x:x+rand(-8,8), y:y+rand(-8,8), vx:(Math.random()-0.5)*6, vy:(Math.random()-0.5)*6 - 1, life:20+rand(0,30), col: ['#ff9a6b','#ff6b6b','#ffd24d'][rand(0,2)] });
+  for(let i=0;i<12;i++) particles.push({ x:x+rand(-8,8), y:y+rand(-8,8), vx:(Math.random()-0.5)*6, vy:(Math.random()-0.5)*6 - 1, life:20+rand(0,30), col:['#ff9a6b','#ff6b6b','#ffd24d'][rand(0,2)] });
 }
 function hurtPlayer(){
   lives = Math.max(0, lives - 1);
   spawnExplosion(player.x, player.y);
   player.x = Math.max(80, player.x - 140);
   player.vx = 0; player.vy = 0;
-  if(lives === 0){
-    running = false;
-    setTimeout(()=> alert('Game Over! Score: ' + score), 40);
-    resetAndShowTitle();
-  }
+  if(lives === 0){ running = false; setTimeout(()=> alert('Game Over! Score: '+score), 40); resetAndShowTitle(); }
 }
 
 /* input handling */
 const input = { left:false, right:false, jump:false, shoot:false };
-
 window.addEventListener('keydown', e=>{
   if(e.key==='ArrowLeft') input.left = true, player.facing='left';
   if(e.key==='ArrowRight') input.right = true, player.facing='right';
-  if(e.key===' '|| e.key==='ArrowUp') input.jump = true;
-  if(e.key.toLowerCase()==='z') input.shoot = true;
-  if(e.key.toLowerCase()==='p') { running = !running; }
+  if(e.key===' '||e.key==='ArrowUp') input.jump=true;
+  if(e.key.toLowerCase()==='z') input.shoot=true;
+  if(e.key.toLowerCase()==='p') running=!running;
 });
 window.addEventListener('keyup', e=>{
-  if(e.key==='ArrowLeft') input.left = false;
-  if(e.key==='ArrowRight') input.right = false;
-  if(e.key===' '|| e.key==='ArrowUp') input.jump = false;
-  if(e.key.toLowerCase()==='z') input.shoot = false;
+  if(e.key==='ArrowLeft') input.left=false;
+  if(e.key==='ArrowRight') input.right=false;
+  if(e.key===' '||e.key==='ArrowUp') input.jump=false;
+  if(e.key.toLowerCase()==='z') input.shoot=false;
 });
 
-/* touch wiring */
+/* touch */
 function wire(el, prop){
-  el.addEventListener('touchstart', ev => { ev.preventDefault(); input[prop] = true; }, {passive:false});
-  el.addEventListener('touchend', ev => { ev.preventDefault(); input[prop] = false; }, {passive:false});
-  el.addEventListener('mousedown', ()=> input[prop]=true);
-  el.addEventListener('mouseup', ()=> input[prop]=false);
-  el.addEventListener('mouseleave', ()=> input[prop]=false);
+  el.addEventListener('touchstart', ev=>{ ev.preventDefault(); input[prop]=true; }, {passive:false});
+  el.addEventListener('touchend', ev=>{ ev.preventDefault(); input[prop]=false; }, {passive:false});
+  el.addEventListener('mousedown', ()=>input[prop]=true);
+  el.addEventListener('mouseup', ()=>input[prop]=false);
+  el.addEventListener('mouseleave', ()=>input[prop]=false);
 }
 wire(controls.left,'left'); wire(controls.right,'right'); wire(controls.jump,'jump'); wire(controls.fire,'shoot');
 
 /* main loop */
 let lastTs=0;
 function step(ts){
-  if(!lastTs) lastTs = ts;
-  const dt = (ts - lastTs)/16.666;
-  lastTs = ts;
+  if(!lastTs) lastTs=ts;
+  const dt=(ts-lastTs)/16.666; lastTs=ts;
   if(running && !paused){ update(dt); render(); }
   requestAnimationFrame(step);
 }
@@ -393,23 +348,20 @@ function startLevel(index){
   levelData = levels[levelIndex];
   levelWidth = levelData.width;
   activated.clear();
-  enemies.length = 0; bullets.length = 0; enemyBullets.length = 0; particles.length = 0;
-  player.x = levelData.playerStartX; player.y = H-140; player.vx = player.vy = 0; player.onGround = true; player.shootCooldown = 0;
-  score = 0; lives = 3;
-  running = true; title.style.display = 'none';
+  enemies.length=0; bullets.length=0; enemyBullets.length=0; particles.length=0;
+  player.x=levelData.playerStartX; player.y=GROUND_Y-player.h; player.vx=0; player.vy=0; player.onGround=true; player.shootCooldown=0;
+  score=0; lives=3;
+  running=true; title.style.display='none';
 }
 
 function resetAndShowTitle(){
-  running = false;
-  title.style.display = 'flex';
+  running=false; title.style.display='flex';
 }
 
-/* init */
-startBtn.addEventListener('click', ()=> startLevel(0));
-document.getElementById('settingsBtn').addEventListener('click', ()=> alert('Settings: none'));
+startBtn.addEventListener('click', ()=>startLevel(0));
+document.getElementById('settingsBtn').addEventListener('click', ()=>alert('Settings: none'));
 resetAndShowTitle();
 requestAnimationFrame(step);
-
 </script>
 </body>
 </html>
