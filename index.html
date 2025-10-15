@@ -10,7 +10,7 @@ html,body{height:100%;margin:0;background:#071018;color:#fff;font-family:Arial,H
 #title h1{margin:0;font-size:56px;color:#00ff99;text-shadow:0 6px 18px rgba(0,0,0,0.8)}
 .btn{padding:12px 22px;margin:8px;border-radius:8px;border:0;background:#0b6;cursor:pointer;font-weight:700}
 #canvasWrap{display:flex;justify-content:center;align-items:center;height:100vh;padding:12px;box-sizing:border-box}
-canvas{background:linear-gradient(#071018,#021015);border:3px solid rgba(255,255,255,0.04);max-width:100%;height:auto;display:block}
+canvas{border:3px solid rgba(255,255,255,0.04);max-width:100%;height:auto;display:block}
 #controls{position:fixed;left:0;right:0;bottom:12px;display:flex;justify-content:space-between;padding:0 20px;z-index:70;pointer-events:none}
 .leftControls,.rightControls{display:flex;gap:10px;pointer-events:auto}
 .ctrl{width:64px;height:64px;border-radius:12px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);display:flex;align-items:center;justify-content:center;font-size:22px;user-select:none;touch-action:none}
@@ -58,6 +58,7 @@ canvas{background:linear-gradient(#071018,#021015);border:3px solid rgba(255,255
 </div>
 
 <script>
+// ------------------ SETUP ------------------
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 const W = canvas.width, H = canvas.height;
@@ -78,7 +79,7 @@ const controls = {
 let running = false;
 let paused = false;
 
-/* ---------- Game data ---------- */
+// ------------------ GAME DATA ------------------
 let levelIndex = 0;
 const levels = [
   {
@@ -98,14 +99,16 @@ const levels = [
 let levelData = levels[levelIndex];
 let levelWidth = levelData.width;
 
-/* Camera & player */
+// ------------------ CAMERA & PLAYER ------------------
 let cameraX = 0;
-const GROUND_Y = H*0.6; // 40% above bottom
+const GROUND_Y = H * 0.7; // 30% above bottom
 const player = { x: 80, y: GROUND_Y-60, w:40, h:60, vx:0, vy:0, speed:3.6, onGround:true, facing:'right', shootCooldown:0 };
 
+// ------------------ GAME OBJECTS ------------------
 let bullets = [], enemyBullets = [], enemies = [], particles = [];
 let score = 0, lives = 3;
 
+// ------------------ UTILS ------------------
 function clamp(v,a,b){ return Math.max(a,Math.min(b,v)); }
 function rand(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
 function rects(a,b){ return !(a.x+a.w < b.x || a.x > b.x+b.w || a.y+a.h < b.y || a.y > b.y + b.h); }
@@ -114,7 +117,7 @@ const activated = new Set();
 const MAX_ACTIVE = 3;
 const TRIGGER_MARGIN = 80;
 
-/* ---------- Images ---------- */
+// ------------------ IMAGES ------------------
 const playerImg = new Image();
 playerImg.src = "assets/player/Player.PNG";
 
@@ -124,25 +127,152 @@ enemyImg.src = "assets/enemies/Enemy.PNG";
 const bgImg = new Image();
 bgImg.src = "assets/background/Background.png";
 
-/* ---------- Spawn enemy ---------- */
+// ------------------ SPAWN ENEMIES ------------------
 function spawnFrom(cfg){
   const e = {
-    id: cfg.id, type: cfg.type, x: cfg.x, y:GROUND_Y-48, baseX: cfg.x,
+    id: cfg.id, type: cfg.type, x: cfg.x, y: GROUND_Y-48, baseX: cfg.x,
     w:44, h:48, vx: (Math.random()<0.5?-1:1)*(0.6 + Math.random()*1.2),
     minX: cfg.x - cfg.patrol/2, maxX: cfg.x + cfg.patrol/2,
-    hp: cfg.hp, shootRange: cfg.shootRange, shootCooldown: rand(40,120)
+    hp: cfg.hp, shootRange: cfg.shootRange, shootCooldown: rand(40,120), onGround:true
   };
-  e.minX = Math.max(40,e.minX);
-  e.maxX = Math.min(levelWidth-80,e.maxX);
+  e.minX = Math.max(40, e.minX);
+  e.maxX = Math.min(levelWidth - 80, e.maxX);
   enemies.push(e);
 }
 
-/* ---------- Input ---------- */
+// ------------------ UPDATE ------------------
 const input = { left:false, right:false, jump:false, shoot:false };
+function update(){
+  // -------- PLAYER --------
+  player.vx=0;
+  if(input.left){ player.vx=-player.speed; player.facing='left'; }
+  if(input.right){ player.vx=player.speed; player.facing='right'; }
+  player.x += player.vx;
+  player.x = clamp(player.x,12,levelWidth - player.w -12);
 
+  // camera
+  const viewCenter = W * 0.38;
+  cameraX = clamp(player.x - viewCenter, 0, levelWidth - W);
+
+  // jump / gravity
+  if(input.jump && player.onGround){ player.vy=-11; player.onGround=false; }
+  player.vy += 0.6;
+  player.y += player.vy;
+  if(player.y + player.h >= GROUND_Y){ player.y = GROUND_Y - player.h; player.vy=0; player.onGround=true; }
+
+  // shoot
+  if(input.shoot && player.shootCooldown <= 0){
+    const dir = player.facing==='right'?1:-1;
+    bullets.push({ x: player.x + (dir===1?player.w:-12), y: player.y + player.h*0.45, vx:12*dir, w:10, h:5, life:200 });
+    player.shootCooldown=12;
+  }
+  if(player.shootCooldown>0) player.shootCooldown--;
+
+  // spawn enemies
+  for(const cfg of levelData.enemies){
+    if(activated.has(cfg.id)) continue;
+    if(player.x >= cfg.trigger - TRIGGER_MARGIN && enemies.length < MAX_ACTIVE){
+      spawnFrom(cfg);
+      activated.add(cfg.id);
+    }
+  }
+
+  // -------- ENEMIES --------
+  for(let i=enemies.length-1;i>=0;i--){
+    const e=enemies[i];
+    e.x += e.vx;
+    if(e.x < e.minX){ e.x=e.minX; e.vx=Math.abs(e.vx); }
+    if(e.x+e.w > e.maxX){ e.x=e.maxX-e.w; e.vx=-Math.abs(e.vx); }
+
+    // simple shooting at player
+    const dx = player.x - e.x;
+    if(Math.abs(dx) <= e.shootRange && e.shootCooldown <= 0){
+      const dir = dx>=0?1:-1;
+      enemyBullets.push({x:e.x+e.w/2,y:e.y+e.h/2,vx:dir*5,vy:0,w:8,h:6,life:300});
+      e.shootCooldown = 80 + rand(0,40);
+    }
+    if(e.shootCooldown>0) e.shootCooldown--;
+
+    if(e.hp <=0){ enemies.splice(i,1); score+=40; spawnExplosion(e.x,e.y); }
+  }
+
+  // -------- BULLETS --------
+  for(let i=bullets.length-1;i>=0;i--){
+    const b=bullets[i]; b.x+=b.vx; b.life--;
+    if(b.life<=0){ bullets.splice(i,1); continue; }
+    for(let j=enemies.length-1;j>=0;j++){ if(rects(b,enemies[j])){ enemies[j].hp--; bullets.splice(i,1); break; } }
+  }
+
+  for(let i=enemyBullets.length-1;i>=0;i--){
+    const b=enemyBullets[i]; b.x+=b.vx; b.life--;
+    if(b.life<=0){ enemyBullets.splice(i,1); continue; }
+    if(rects(b,player)){ enemyBullets.splice(i,1); hurtPlayer(); }
+  }
+
+  // -------- PARTICLES --------
+  for(let i=particles.length-1;i>=0;i--){ const p=particles[i]; p.x+=p.vx; p.y+=p.vy; p.vy+=0.2; p.life--; if(p.life<=0) particles.splice(i,1); }
+
+  // -------- LEVEL END --------
+  if(player.x >= levelData.levelEndX){
+    running=false;
+    setTimeout(()=>alert('You finished the game! Score: '+score),80);
+  }
+
+  scoreDOM.textContent = 'Score: '+score;
+  livesDOM.textContent = 'Lives: '+lives;
+  levelDOM.textContent = 'Level: '+(levelIndex+1);
+}
+
+// ------------------ RENDER ------------------
+function render(){
+  ctx.clearRect(0,0,W,H);
+
+  // background
+  if(bgImg.complete && bgImg.naturalWidth!==0){ ctx.drawImage(bgImg,-cameraX,0,levelWidth,H); }
+  else { ctx.fillStyle='#03191a'; ctx.fillRect(0,0,W,H); }
+
+  // bullets
+  ctx.fillStyle='#ffd24d'; for(const b of bullets) ctx.fillRect(b.x-cameraX,b.y,b.w,b.h);
+  ctx.fillStyle='#ff7b7b'; for(const b of enemyBullets) ctx.fillRect(b.x-cameraX,b.y,b.w,b.h);
+
+  // enemies
+  for(const e of enemies){
+    const ex=e.x-cameraX, ey=e.y;
+    if(enemyImg.complete && enemyImg.naturalWidth!==0){ ctx.drawImage(enemyImg,ex,ey,e.w,e.h); }
+    else { ctx.fillStyle='#ff6b6b'; ctx.fillRect(ex,ey,e.w,e.h); }
+  }
+
+  // player
+  ctx.save();
+  const sx=player.x-cameraX, sy=player.y;
+  if(playerImg.complete && playerImg.naturalWidth!==0){
+    if(player.facing==='left'){ ctx.translate(sx+player.w/2,0); ctx.scale(-1,1); ctx.drawImage(playerImg,-sx-player.w,sy,player.w,player.h); }
+    else ctx.drawImage(playerImg,sx,sy,player.w,player.h);
+  } else { ctx.fillStyle='#06b07a'; ctx.fillRect(sx,sy,player.w,player.h); }
+  ctx.restore();
+
+  // particles
+  for(const p of particles){ ctx.fillStyle=p.col; ctx.fillRect(p.x-cameraX,p.y,3,3); }
+}
+
+// ------------------ PARTICLES ------------------
+function spawnExplosion(x,y){
+  for(let i=0;i<12;i++) particles.push({x:x+rand(-8,8),y:y+rand(-8,8),vx:(Math.random()-0.5)*6,vy:(Math.random()-0.5)*6-1,life:20+rand(0,30),col:['#ff9a6b','#ff6b6b','#ffd24d'][rand(0,2)]});
+}
+
+// ------------------ PLAYER DAMAGE ------------------
+function hurtPlayer(){
+  lives=Math.max(0,lives-1);
+  spawnExplosion(player.x,player.y);
+  player.x = Math.max(80,player.x-140);
+  player.vx=0; player.vy=0;
+  if(lives===0){ running=false; setTimeout(()=>alert('Game Over! Score: '+score),40); resetAndShowTitle(); }
+}
+
+// ------------------ INPUT ------------------
 window.addEventListener('keydown', e=>{
-  if(e.key==='ArrowLeft') input.left=true, player.facing='left';
-  if(e.key==='ArrowRight') input.right=true, player.facing='right';
+  if(e.key==='ArrowLeft') input.left=true,player.facing='left';
+  if(e.key==='ArrowRight') input.right=true,player.facing='right';
   if(e.key===' '|| e.key==='ArrowUp') input.jump=true;
   if(e.key.toLowerCase()==='z') input.shoot=true;
   if(e.key.toLowerCase()==='p') running=!running;
@@ -154,108 +284,33 @@ window.addEventListener('keyup', e=>{
   if(e.key.toLowerCase()==='z') input.shoot=false;
 });
 
-/* ---------- Touch controls ---------- */
-function wire(el, prop){
-  el.addEventListener('touchstart', ev=>{ ev.preventDefault(); input[prop]=true; }, {passive:false});
-  el.addEventListener('touchend', ev=>{ ev.preventDefault(); input[prop]=false; }, {passive:false});
-  el.addEventListener('mousedown', ()=> input[prop]=true);
-  el.addEventListener('mouseup', ()=> input[prop]=false);
-  el.addEventListener('mouseleave', ()=> input[prop]=false);
+// touch
+function wire(el,prop){
+  el.addEventListener('touchstart',ev=>{ev.preventDefault(); input[prop]=true},{passive:false});
+  el.addEventListener('touchend',ev=>{ev.preventDefault(); input[prop]=false},{passive:false});
+  el.addEventListener('mousedown',()=>input[prop]=true);
+  el.addEventListener('mouseup',()=>input[prop]=false);
+  el.addEventListener('mouseleave',()=>input[prop]=false);
 }
 wire(controls.left,'left'); wire(controls.right,'right'); wire(controls.jump,'jump'); wire(controls.fire,'shoot');
 
-/* ---------- Update ---------- */
-function update(){
-  player.vx=0;
-  if(input.left){ player.vx=-player.speed; player.facing='left'; }
-  if(input.right){ player.vx=player.speed; player.facing='right'; }
-  player.x += player.vx;
-  player.x = clamp(player.x,12,levelWidth-player.w-12);
-
-  cameraX = clamp(player.x-W*0.38,0,levelWidth-W);
-
-  if(input.jump && player.onGround){ player.vy=-11; player.onGround=false; }
-  player.vy += 0.6;
-  player.y += player.vy;
-  if(player.y + player.h >= GROUND_Y){ player.y = GROUND_Y-player.h; player.vy=0; player.onGround=true; }
-
-  if(input.shoot && player.shootCooldown<=0){
-    const dir = player.facing==='right'?1:-1;
-    bullets.push({x:player.x + (dir===1?player.w:-12), y:player.y+player.h*0.45, vx:12*dir, w:10, h:5, life:200});
-    player.shootCooldown=12;
-  }
-  if(player.shootCooldown>0) player.shootCooldown--;
-
-  for(const cfg of levelData.enemies){
-    if(activated.has(cfg.id)) continue;
-    if(player.x>=cfg.trigger-TRIGGER_MARGIN && enemies.length<MAX_ACTIVE){
-      spawnFrom(cfg);
-      activated.add(cfg.id);
-    }
-  }
-
-  for(let i=enemies.length-1;i>=0;i--){
-    const e=enemies[i];
-    e.x += e.vx;
-    if(e.x < e.minX){ e.x = e.minX; e.vx=Math.abs(e.vx);}
-    if(e.x + e.w > e.maxX){ e.x=e.maxX-e.w; e.vx=-Math.abs(e.vx);}
-  }
-
-  for(let i=bullets.length-1;i>=0;i--){
-    const b=bullets[i]; b.x+=b.vx; b.life--;
-    if(b.life<=0){ bullets.splice(i,1); continue; }
-    for(let j=enemies.length-1;j>=0;j--){
-      if(rects(b,enemies[j])){ enemies[j].hp--; bullets.splice(i,1); break; }
-    }
-  }
-
-  scoreDOM.textContent='Score: '+score;
-  livesDOM.textContent='Lives: '+lives;
-  levelDOM.textContent='Level: '+(levelIndex+1);
-}
-
-/* ---------- Render ---------- */
-function render(){
-  ctx.clearRect(0,0,W,H);
-
-  // background
-  if(bgImg.complete && bgImg.naturalWidth!==0){ ctx.drawImage(bgImg,-cameraX,0,levelWidth,H); }
-  else{ ctx.fillStyle='#03191a'; ctx.fillRect(0,0,W,H); }
-
-  // bullets
-  ctx.fillStyle='#ffd24d'; for(const b of bullets) ctx.fillRect(b.x-cameraX,b.y,b.w,b.h);
-
-  // enemies
-  for(const e of enemies){
-    const ex = e.x-cameraX, ey=e.y;
-    if(enemyImg.complete && enemyImg.naturalWidth!==0){ ctx.drawImage(enemyImg,ex,ey,e.w,e.h); }
-    else { ctx.fillStyle='#ff6b6b'; ctx.fillRect(ex,ey,e.w,e.h); }
-  }
-
-  // player
-  if(playerImg.complete && playerImg.naturalWidth!==0){
-    ctx.save();
-    if(player.facing==='left'){ ctx.translate(player.x+player.w/2,0); ctx.scale(-1,1); ctx.drawImage(playerImg,-(player.x+player.w/2)-player.w/2,player.y,player.w,player.h);}
-    else ctx.drawImage(playerImg,player.x-cameraX,player.y,player.w,player.h);
-    ctx.restore();
-  } else { ctx.fillStyle='#06b07a'; ctx.fillRect(player.x-cameraX,player.y,player.w,player.h); }
-}
-
-/* ---------- Start Level ---------- */
+// ------------------ LEVEL CONTROL ------------------
 function startLevel(index){
   levelIndex=index;
   levelData=levels[levelIndex];
   levelWidth=levelData.width;
   activated.clear();
   enemies.length=0; bullets.length=0; enemyBullets.length=0; particles.length=0;
-  player.x = levelData.playerStartX; player.y = GROUND_Y-player.h; player.vx=0; player.vy=0; player.onGround=true; player.shootCooldown=0;
+  player.x=levelData.playerStartX; player.y=GROUND_Y-player.h; player.vx=0; player.vy=0; player.onGround=true; player.shootCooldown=0;
   score=0; lives=3;
   running=true; title.style.display='none';
 }
+function resetAndShowTitle(){ running=false; title.style.display='flex'; }
 
 startBtn.addEventListener('click',()=>startLevel(0));
+document.getElementById('settingsBtn').addEventListener('click',()=>alert('Settings: none'));
 
-/* ---------- Main Loop ---------- */
+// ------------------ MAIN LOOP ------------------
 let lastTs=0;
 function step(ts){
   if(!lastTs) lastTs=ts;
